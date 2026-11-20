@@ -41,9 +41,10 @@
   .band { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .band output { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .band input[type=range] {
-    -webkit-appearance: slider-vertical; appearance: slider-vertical;
-    width: 26px; height: 140px; margin: 0; background: transparent;
-    accent-color: var(--accent);
+    writing-mode: vertical-lr; direction: rtl;
+    -webkit-appearance: slider-vertical;
+    width: 30px; height: 140px; margin: 0; background: transparent;
+    accent-color: var(--accent); touch-action: none;
   }
   .band .n { font-size: 10px; color: var(--dim); }
   .btns { display: flex; gap: 8px; margin-top: 12px; }
@@ -150,6 +151,14 @@ function execRaw(cmd) {
   });
 }
 
+function shellQuote(str) {
+  return "'" + String(str).replace(/'/g, "'\\''") + "'";
+}
+
+async function note(text) {
+  try { await execRaw("printf '%s\\n' " + shellQuote("[ui] " + text) + " >> /data/adb/oplusdolby/ui.log"); } catch (e) {}
+}
+
 async function sh(cmd) {
   const res = await execRaw(cmd);
   if (res && typeof res === "object") return (res.stdout || "") + (res.stderr || "");
@@ -217,7 +226,8 @@ async function refresh(note) {
 
     const mode = (text.match(/^mode:\s*(\S*)/m) || [])[1] || "off";
     const effLine = (text.match(/^effect:\s*(.+)$/m) || [])[1] || "";
-    const effectOn = effLine.indexOf("enabled=true") !== -1;
+    note("status mode=" + mode + " eff=" + effLine + " raw=" + text.replace(/\n/g, " | "));
+    const effectOn = effLine ? effLine.indexOf("enabled=true") !== -1 : true;
     paintMode(mode, effectOn);
 
     const curve = (text.match(/^curve:\s*(.+)$/m) || [])[1];
