@@ -1,6 +1,6 @@
 id=oplusdolby
 name=Oplus Dolby (stock)
-version=v1.7.2
-versionCode=172
+version=v1.7.3
+versionCode=173
 author=davnozdu
 description=Keeps the phone own Oplus/HoloAudio "Dolby" effect in place and lets it be controlled: three mutually exclusive modes (Dolby max = profile 2, Dolby soft = profile 5, own 10-band GEQ = profile 0), the choice and the curve survive reboots. Restores the stock effect libraries only on this model. No DSP of its own.

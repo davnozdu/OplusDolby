@@ -192,6 +192,12 @@ eq_set_one() {
 }
 
 case "$1" in
+    fast)
+        echo "mode:   $(state_get mode)"
+        echo "profile: $(state_get profile)"
+        echo "audio:  $(state_get audio)"
+        echo "curve:  $(eq_load)"
+        ;;
     status)
         for k in $(sec_keys); do show "$k"; done
         for k in $(sys_keys); do show "$k"; done

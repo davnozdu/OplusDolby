@@ -221,14 +221,12 @@ function paintEq() {
 
 async function refresh(note) {
   try {
-    const text = await sh(SCRIPT + " status");
+    const text = await sh(SCRIPT + " fast");
     if (note) log(note + "\n" + text); else log(text);
 
     const mode = (text.match(/^mode:\s*(\S*)/m) || [])[1] || "off";
-    const effLine = (text.match(/^effect:\s*(.+)$/m) || [])[1] || "";
-    note("status mode=" + mode + " eff=" + effLine + " raw=" + text.replace(/\n/g, " | "));
-    const effectOn = effLine ? effLine.indexOf("enabled=true") !== -1 : true;
-    paintMode(mode, effectOn);
+    const audio = (text.match(/^audio:\s*(\S*)/m) || [])[1] || "off";
+    paintMode(mode, audio === "on");
 
     const curve = (text.match(/^curve:\s*(.+)$/m) || [])[1];
     if (curve) {
@@ -237,10 +235,9 @@ async function refresh(note) {
       paintEq();
     }
 
-    const chain = (await sh("dumpsys media.audio_flinger | grep -c 'name: OplusAudioX'")).trim();
-    const inChain = chain !== "" && chain !== "0";
+    const inChain = audio === "on";
     document.getElementById("chainDot").classList.toggle("on", inChain);
-    document.getElementById("chainTxt").textContent = inChain ? "эффект в цепочке" : "эффекта в цепочке нет";
+    document.getElementById("chainTxt").textContent = inChain ? "эффект в цепочке" : "эффект выключен";
   } catch (e) {
     log("ошибка: " + e.message);
   }
