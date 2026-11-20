@@ -99,35 +99,6 @@
 </div>
 
 <div class="card">
-  <h2>Профиль</h2>
-  <div class="grid">
-    <div class="field">
-      <label>holo_audio_mode</label>
-      <select id="mode">
-        <option value="0">0</option><option value="1">1</option><option value="2">2</option>
-        <option value="3">3</option><option value="4">4</option><option value="5">5</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>holo_audio_device_type</label>
-      <input type="number" id="device" min="0" max="99" step="1">
-    </div>
-    <div class="field">
-      <label>dynamic enter, мс</label>
-      <input type="number" id="rateIn" min="-1" step="50">
-    </div>
-    <div class="field">
-      <label>dynamic exit, мс</label>
-      <input type="number" id="rateOut" min="-1" step="50">
-    </div>
-  </div>
-  <div class="btns">
-    <button class="act primary" id="applyProfile">Сохранить</button>
-    <button class="act" id="refresh">Обновить</button>
-  </div>
-</div>
-
-<div class="card">
   <h2>Состояние</h2>
   <div class="eff" id="effLine">—</div>
   <div class="log" id="log">…</div>
@@ -225,10 +196,6 @@ async function refresh() {
     setSw(document.getElementById("swGeq"), mode === "eq");
     setSw(document.getElementById("swGeq"), (k.__eqSaved || "") === "on");
     document.getElementById("effLine").textContent = (k.__effect || "—");
-    if (k.holo_audio_mode !== undefined) document.getElementById("mode").value = k.holo_audio_mode;
-    if (k.holo_audio_device_type !== undefined) document.getElementById("device").value = k.holo_audio_device_type;
-    if (k.dolby_dynamic_enter_rate !== undefined) document.getElementById("rateIn").value = k.dolby_dynamic_enter_rate;
-    if (k.dolby_dynamic_exit_rate !== undefined) document.getElementById("rateOut").value = k.dolby_dynamic_exit_rate;
     const curve = k.__curve || k.__bands;
     if (curve) {
       state.eq = curve.split(",").map(x => parseInt(x, 10) || 0).slice(0, 10);
@@ -274,17 +241,6 @@ document.getElementById("eqFlat").addEventListener("click", async () => {
   state.eq = Array(10).fill(0);
   pushEqUi();
   run(SCRIPT + " eq flat", "все полосы в 0");
-});
-
-document.getElementById("applyProfile").addEventListener("click", async () => {
-  const mode = document.getElementById("mode").value;
-  const device = document.getElementById("device").value;
-  const a = document.getElementById("rateIn").value;
-  const b = document.getElementById("rateOut").value;
-  await sh(SCRIPT + " mode " + mode);
-  if (device !== "") await sh(SCRIPT + " device " + device);
-  if (a !== "" && b !== "") await sh(SCRIPT + " rate " + a + " " + b);
-  run(SCRIPT + " status", "профиль сохранён");
 });
 
 document.getElementById("refresh").addEventListener("click", refresh);
