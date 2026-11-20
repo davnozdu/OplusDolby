@@ -109,6 +109,26 @@ eq_load() {
     [ -f "$EQ_FILE" ] && cat "$EQ_FILE" || echo "0,0,0,0,0,0,0,0,0,0"
 }
 
+# Two modes, mutually exclusive: the effect runs either the vendor Dolby processing or the user
+# GEQ, never both - GEQ only exists inside profile 0, and profile 0 has the Dolby blocks off.
+DOLBY_PROFILE=${DOLBY_PROFILE:-2}
+
+dolby_on() {
+    audiox profile "$DOLBY_PROFILE" >/dev/null 2>&1
+    audiox eq off >/dev/null 2>&1
+    audiox on >/dev/null 2>&1
+    state_set mode dolby; state_set audio on; state_set eq off; state_set profile "$DOLBY_PROFILE"
+    echo "dolby on: profile $DOLBY_PROFILE (Fddrc+DE), eq off"
+}
+
+eq_mode_on() {
+    audiox profile 0 >/dev/null 2>&1
+    audiox eq on >/dev/null 2>&1
+    audiox on >/dev/null 2>&1
+    state_set mode eq; state_set audio on; state_set eq on; state_set profile 0
+    eq_push
+}
+
 # The GEQ curve is stored per media-volume bucket. The vendor app computes the bucket as
 # streamVolume, halved when the stream max is above 100 (this phone has max 160), so the curve
 # has to travel with the *current* bucket or it lands in a shelf that is not in use.
@@ -175,20 +195,17 @@ case "$1" in
         [ "$(settings get system "$EQ_KEY" 2>/dev/null)" != "" ] && eq_show
         echo
         echo "curve:  $(eq_load)"
+        echo "mode:   $(state_get mode)"
         echo "saved:  audio=$(state_get audio) eq=$(state_get eq) profile=$(state_get profile)"
         echo "effect: $(audiox info | tr '\n' ' ')"
         [ -f "$DATA_DIR/disable" ] && echo "module: disabled" || echo "module: enabled"
         ;;
     restore)
-        prof=$(state_get profile); [ -n "$prof" ] || prof=0
-        audiox profile "$prof" >/dev/null 2>&1
-        if [ "$(state_get audio)" = "off" ]; then audiox off >/dev/null 2>&1; else audiox on >/dev/null 2>&1; fi
-        if [ "$(state_get eq)" = "off" ]; then
-            audiox eq off >/dev/null 2>&1
-            echo "restored: audio=$(state_get audio) eq=off profile=$prof"
-        else
-            eq_push
-        fi
+        case "$(state_get mode)" in
+            eq) eq_mode_on ;;
+            off) audiox off >/dev/null 2>&1; echo "restored: off" ;;
+            *) dolby_on ;;
+        esac
         ;;
     on)    apply holo_audio_switch 1 ;;
     off)   apply holo_audio_switch 0 ;;
@@ -199,8 +216,10 @@ case "$1" in
     eq)
         case "$2" in
             '') eq_show ;;
-            on) audiox eq on; state_set eq on ;;
-            off) audiox eq off; state_set eq off ;;
+            on) eq_mode_on ;;
+            off) audiox eq off >/dev/null 2>&1; state_set eq off
+                 [ "$(state_get mode)" = "eq" ] && state_set mode dolby || true
+                 echo "eq off" ;;
             flat|reset) eq_store 0 0 0 0 0 0 0 0 0 0; eq_push ;;
             set) shift 2; [ $# -eq 10 ] || { echo "usage: eq set <10 values in dB>"; exit 1; }
                  eq_store "$@"; eq_push ;;
@@ -208,10 +227,10 @@ case "$1" in
                eq_set_one "$2" "$3"; eq_push ;;
         esac
         ;;
-    audio)  case "$2" in
-                on) audiox on; state_set audio on ;;
-                off) audiox off; state_set audio off ;;
-                *) echo "usage: audio {on|off}" ;;
+    dolby|audio) case "$2" in
+                on) dolby_on ;;
+                off) audiox off >/dev/null 2>&1; state_set audio off; state_set mode off; echo "dolby off" ;;
+                *) echo "usage: $1 {on|off}" ;;
             esac ;;
     profile) [ -n "$2" ] || { echo "usage: profile <0..14>"; exit 1; }
              audiox profile "$2"; state_set profile "$2" ;;

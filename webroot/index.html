@@ -80,11 +80,11 @@
 <div class="card">
   <h2>Выключатели</h2>
   <div class="row">
-    <div><span class="label">Dolby (мастер)</span><span class="hint">system_dolby — весь эффект целиком</span></div>
+    <div><span class="label">Dolby — фирменный</span><span class="hint">профиль 2: Fddrc + DE, эквалайзер выключен</span></div>
     <button class="sw" id="swDolby" data-key="dolby"></button>
   </div>
   <div class="row">
-    <div><span class="label">Эквалайзер</span><span class="hint">system_dolby_geq_state — 10 полос ниже</span></div>
+    <div><span class="label">Эквалайзер — свой</span><span class="hint">профиль 0: только GEQ, обработка Dolby выключена</span></div>
     <button class="sw" id="swGeq" data-key="geq"></button>
   </div>
 </div>
@@ -180,6 +180,8 @@ function parseStatus(text) {
     if (b) keys.__bands = b[1].trim();
     const c = line.match(/^curve:\s*(.+)$/);
     if (c) keys.__curve = c[1].trim();
+    const md = line.match(/^mode:\s*(\S*)$/);
+    if (md) keys.__mode = md[1];
     const sv = line.match(/^saved:\s*audio=(\S*)\s*eq=(\S*)\s*profile=(\S*)$/);
     if (sv) { keys.__audio = sv[1]; keys.__eqSaved = sv[2]; }
     const e = line.match(/^effect:\s*(.+)$/);
@@ -218,7 +220,9 @@ async function refresh() {
     const k = parseStatus(text);
     state.keys = k;
     const effOn = (k.__effect || "").indexOf("enabled=true") !== -1;
-    setSw(document.getElementById("swDolby"), effOn);
+    const mode = k.__mode || "dolby";
+    setSw(document.getElementById("swDolby"), effOn && mode !== "eq" && mode !== "off");
+    setSw(document.getElementById("swGeq"), mode === "eq");
     setSw(document.getElementById("swGeq"), (k.__eqSaved || "") === "on");
     document.getElementById("effLine").textContent = (k.__effect || "—");
     if (k.holo_audio_mode !== undefined) document.getElementById("mode").value = k.holo_audio_mode;
@@ -248,8 +252,14 @@ document.querySelectorAll(".sw").forEach(btn => {
     const key = btn.dataset.key;
     btn.classList.toggle("on", !now);
     let cmd;
-    if (key === "dolby") cmd = SCRIPT + " audio " + (now ? "off" : "on");
-    if (key === "geq") cmd = SCRIPT + " eq " + (now ? "off" : "on");
+    if (key === "dolby") {
+      cmd = SCRIPT + " dolby " + (now ? "off" : "on");
+      if (!now) setSw(document.getElementById("swGeq"), false);
+    }
+    if (key === "geq") {
+      cmd = SCRIPT + " eq " + (now ? "off" : "on");
+      if (!now) setSw(document.getElementById("swDolby"), false);
+    }
     const out = await run(cmd);
     if (!out || /failed/.test(out)) refresh();
   });
