@@ -25,9 +25,10 @@ jobs:
       - name: Package the module
         run: |
           mkdir -p dist
-          cp -f module.prop module/post-fs-data.sh module/service.sh module/uninstall.sh module/README.md dist/ 2>/dev/null || true
-          [ -f dist/README.md ] || cp -f README.md dist/
-          cp -f module/customize.sh dist/customize.sh
+          cp -f module/module.prop module/customize.sh module/post-fs-data.sh \
+                module/service.sh module/uninstall.sh module/README.md dist/
+          # module.prop has to sit at the archive root - that is what the installer reads
+          test -f dist/module.prop || { echo "module.prop missing from the package"; exit 1; }
           (cd dist && zip -r9 ../OplusDolby.zip .)
 
       - uses: actions/upload-artifact@v4
