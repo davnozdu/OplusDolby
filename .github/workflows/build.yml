@@ -1,0 +1,42 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the scripts parse
+        run: |
+          for f in module/post-fs-data.sh module/service.sh module/uninstall.sh module/customize.sh; do
+            sh -n "$f" || { echo "syntax error in $f"; exit 1; }
+          done
+
+      - name: Package the module
+        run: |
+          mkdir -p dist
+          cp -f module.prop module/post-fs-data.sh module/service.sh module/uninstall.sh module/README.md dist/ 2>/dev/null || true
+          [ -f dist/README.md ] || cp -f README.md dist/
+          cp -f module/customize.sh dist/customize.sh
+          (cd dist && zip -r9 ../OplusDolby.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OplusDolby
+          path: OplusDolby.zip
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: OplusDolby.zip

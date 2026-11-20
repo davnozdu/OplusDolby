@@ -1,0 +1,6 @@
+id=oplusdolby
+name=Oplus Dolby (stock)
+version=v1.0.0
+versionCode=100
+author=davnozdu
+description=Keeps the phone's own Oplus/HoloAudio "Dolby" effect in place. It restores the stock effect libraries and the effect entry in the audio config if another module or update replaces them, so the effect stays in the audio chain. No DSP of its own, nothing to configure, battery cost is zero.
