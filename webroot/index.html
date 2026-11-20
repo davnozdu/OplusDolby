@@ -107,7 +107,10 @@
 <div class="card">
   <h2>Состояние</h2>
   <div class="log" id="log">…</div>
-  <div class="btns"><button class="act" id="refresh">Обновить</button></div>
+  <div class="btns">
+    <button class="act" id="refresh">Обновить</button>
+    <button class="act" id="selftest">Проверить связь</button>
+  </div>
 </div>
 
 <script>
@@ -124,11 +127,31 @@ let currentMode = "off";
 
 function bridge() {
   if (window.ksu && typeof window.ksu.exec === "function") return window.ksu.exec.bind(window.ksu);
-  throw new Error("нет моста KernelSU: открой страницу кнопкой WebUI в менеджере модулей");
+  if (window.ksud && typeof window.ksud.exec === "function") return window.ksud.exec.bind(window.ksud);
+  return null;
+}
+
+// The bridge exists in two shapes: a promise API and the older callback API. Calling the
+// callback form without a callback simply never resolves, which makes every button look dead,
+// so both shapes are exercised here and a timeout keeps the UI alive if neither answers.
+function execRaw(cmd) {
+  const exec = bridge();
+  if (!exec) return Promise.reject(new Error("нет моста KernelSU: открой страницу кнопкой WebUI в менеджере модулей"));
+  return new Promise(resolve => {
+    let done = false;
+    const finish = v => { if (!done) { done = true; resolve(v); } };
+    const cb = (errno, stdout, stderr) => finish({ errno, stdout, stderr });
+    let ret;
+    try { ret = exec(cmd, {}, cb); } catch (e) { try { ret = exec(cmd); } catch (e2) { return finish({ errno: -1, stdout: "", stderr: String(e2) }); } }
+    if (ret && typeof ret.then === "function") { ret.then(finish, e => finish({ errno: -1, stdout: "", stderr: String((e && e.message) || e) })); }
+    else if (ret && typeof ret === "object") finish(ret);
+    else if (typeof ret === "string") finish({ errno: 0, stdout: ret, stderr: "" });
+    setTimeout(() => finish({ errno: -1, stdout: "", stderr: "timeout: мост не ответил" }), 15000);
+  });
 }
 
 async function sh(cmd) {
-  const res = await bridge()(cmd);
+  const res = await execRaw(cmd);
   if (res && typeof res === "object") return (res.stdout || "") + (res.stderr || "");
   return String(res || "");
 }
@@ -236,6 +259,15 @@ document.getElementById("eqFlat").addEventListener("click", async () => {
 });
 
 document.getElementById("refresh").addEventListener("click", () => refresh());
+
+document.getElementById("selftest").addEventListener("click", async () => {
+  try {
+    const res = await execRaw("id; echo rc=$?");
+    log("мост: " + JSON.stringify(res));
+  } catch (e) {
+    log("мост недоступен: " + e.message);
+  }
+});
 
 buildEq();
 refresh();
