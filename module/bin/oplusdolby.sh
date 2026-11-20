@@ -112,13 +112,16 @@ eq_load() {
 # Two modes, mutually exclusive: the effect runs either the vendor Dolby processing or the user
 # GEQ, never both - GEQ only exists inside profile 0, and profile 0 has the Dolby blocks off.
 DOLBY_PROFILE=${DOLBY_PROFILE:-2}
+DOLBY_SOFT_PROFILE=${DOLBY_SOFT_PROFILE:-5}
 
 dolby_on() {
-    audiox profile "$DOLBY_PROFILE" >/dev/null 2>&1
+    prof=${1:-$DOLBY_PROFILE}
+    name=dolby; [ "$prof" = "$DOLBY_SOFT_PROFILE" ] && name=dolby_soft
+    audiox profile "$prof" >/dev/null 2>&1
     audiox eq off >/dev/null 2>&1
     audiox on >/dev/null 2>&1
-    state_set mode dolby; state_set audio on; state_set eq off; state_set profile "$DOLBY_PROFILE"
-    echo "dolby on: profile $DOLBY_PROFILE (Fddrc+DE), eq off"
+    state_set mode "$name"; state_set audio on; state_set eq off; state_set profile "$prof"
+    echo "$name on: profile $prof, eq off"
 }
 
 eq_mode_on() {
@@ -204,7 +207,8 @@ case "$1" in
         case "$(state_get mode)" in
             eq) eq_mode_on ;;
             off) audiox off >/dev/null 2>&1; echo "restored: off" ;;
-            *) dolby_on ;;
+            dolby_soft) dolby_on "$DOLBY_SOFT_PROFILE" ;;
+            *) dolby_on "$DOLBY_PROFILE" ;;
         esac
         ;;
     on)    apply holo_audio_switch 1 ;;
@@ -224,9 +228,10 @@ case "$1" in
         esac
         ;;
     dolby|audio) case "$2" in
-                on) dolby_on ;;
+                on|full) dolby_on "$DOLBY_PROFILE" ;;
+                soft) dolby_on "$DOLBY_SOFT_PROFILE" ;;
                 off) audiox off >/dev/null 2>&1; state_set audio off; state_set mode off; echo "dolby off" ;;
-                *) echo "usage: $1 {on|off}" ;;
+                *) echo "usage: $1 {on|soft|off}" ;;
             esac ;;
     profile) [ -n "$2" ] || { echo "usage: profile <0..14>"; exit 1; }
              audiox profile "$2"; state_set profile "$2" ;;

@@ -75,18 +75,23 @@
 <body>
 
 <h1>Oplus Dolby</h1>
-<div class="sub">Штатный эффект телефона: <span id="chain" class="pill"><span class="dot" id="chainDot"></span><span id="chainTxt">проверяю…</span></span></div>
+<div class="sub">Штатный эффект телефона: <span class="pill"><span class="dot" id="chainDot"></span><span id="chainTxt">проверяю…</span></span></div>
 
 <div class="card">
-  <h2>Выключатели</h2>
+  <h2>Режим — включён ровно один</h2>
   <div class="row">
-    <div><span class="label">Dolby — фирменный</span><span class="hint">профиль 2: Fddrc + DE, эквалайзер выключен</span></div>
-    <button class="sw" id="swDolby" data-key="dolby"></button>
+    <div><span class="label">Dolby — максимум</span><span class="hint">профиль 2: полосный компрессор + dynamic EQ</span></div>
+    <button class="sw" id="swFull" data-mode="dolby"></button>
   </div>
   <div class="row">
-    <div><span class="label">Эквалайзер — свой</span><span class="hint">профиль 0: только GEQ, обработка Dolby выключена</span></div>
-    <button class="sw" id="swGeq" data-key="geq"></button>
+    <div><span class="label">Dolby — мягкий</span><span class="hint">профиль 5: без агрессивной обработки</span></div>
+    <button class="sw" id="swSoft" data-mode="dolby_soft"></button>
   </div>
+  <div class="row">
+    <div><span class="label">Эквалайзер — свой</span><span class="hint">профиль 0: только 10 полос, обработка Dolby выключена</span></div>
+    <button class="sw" id="swEq" data-mode="eq"></button>
+  </div>
+  <div class="eff" id="modeLine">режим: —</div>
 </div>
 
 <div class="card">
@@ -96,40 +101,40 @@
     <button class="act primary" id="eqApply">Применить</button>
     <button class="act" id="eqFlat">Ровно</button>
   </div>
+  <div class="hint" id="eqNote">кривая слышна в режиме «Эквалайзер»</div>
 </div>
 
 <div class="card">
   <h2>Состояние</h2>
-  <div class="eff" id="effLine">—</div>
   <div class="log" id="log">…</div>
+  <div class="btns"><button class="act" id="refresh">Обновить</button></div>
 </div>
 
 <script>
 const SCRIPT = "sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh";
-
 const BANDS = [31, 62, 125, 250, 500, "1k", "2k", "4k", "8k", "16k"];
-const state = { eq: Array(10).fill(0), keys: {} };
+const MODES = {
+  dolby:      { sw: "swFull", cmd: "dolby on",   label: "Dolby — максимум (профиль 2)" },
+  dolby_soft: { sw: "swSoft", cmd: "dolby soft", label: "Dolby — мягкий (профиль 5)" },
+  eq:         { sw: "swEq",   cmd: "eq on",      label: "Эквалайзер (профиль 0)" },
+  off:        { sw: null,     cmd: "dolby off",  label: "выключено" }
+};
+let eqState = [0,0,0,0,0,0,0,0,0,0];
+let currentMode = "off";
 
 function bridge() {
   if (window.ksu && typeof window.ksu.exec === "function") return window.ksu.exec.bind(window.ksu);
-  return null;
+  throw new Error("нет моста KernelSU: открой страницу кнопкой WebUI в менеджере модулей");
 }
 
 async function sh(cmd) {
-  const exec = bridge();
-  if (!exec) throw new Error("нет моста KernelSU: открой страницу через кнопку WebUI в менеджере модулей");
-  const res = await exec(cmd);
+  const res = await bridge()(cmd);
   if (res && typeof res === "object") return (res.stdout || "") + (res.stderr || "");
   return String(res || "");
 }
 
 function log(text) {
-  const el = document.getElementById("log");
-  el.textContent = text.trim() || "—";
-}
-
-function setSw(el, on) {
-  el.classList.toggle("on", !!on);
+  document.getElementById("log").textContent = (text || "").trim() || "—";
 }
 
 async function run(cmd, note) {
@@ -139,33 +144,23 @@ async function run(cmd, note) {
     return out;
   } catch (e) {
     log("ошибка: " + e.message);
+    return "";
   }
 }
 
-function parseStatus(text) {
-  const keys = {};
-  text.split("\n").forEach(line => {
-    const m = line.match(/^(\S+)\s+(secure|system)\s+(\S+)/);
-    if (m) keys[m[1]] = m[3];
-    const b = line.match(/^bands:\s*(.+)$/);
-    if (b) keys.__bands = b[1].trim();
-    const c = line.match(/^curve:\s*(.+)$/);
-    if (c) keys.__curve = c[1].trim();
-    const md = line.match(/^mode:\s*(\S*)$/);
-    if (md) keys.__mode = md[1];
-    const sv = line.match(/^saved:\s*audio=(\S*)\s*eq=(\S*)\s*profile=(\S*)$/);
-    if (sv) { keys.__audio = sv[1]; keys.__eqSaved = sv[2]; }
-    const e = line.match(/^effect:\s*(.+)$/);
-    if (e) keys.__effect = e[1].trim();
-  });
-  return keys;
+function setOn(id, on) {
+  if (!id) return;
+  document.getElementById(id).classList.toggle("on", !!on);
 }
 
-function pushEqUi() {
-  document.querySelectorAll("#eq input[type=range]").forEach((inp, i) => {
-    inp.value = state.eq[i] ?? 0;
-    inp.parentElement.querySelector("output").textContent = (state.eq[i] > 0 ? "+" : "") + (state.eq[i] ?? 0);
-  });
+function paintMode(mode, effectOn) {
+  currentMode = mode || "off";
+  const active = effectOn ? currentMode : "off";
+  Object.keys(MODES).forEach(k => setOn(MODES[k].sw, k === active && k !== "off"));
+  document.getElementById("modeLine").textContent = "режим: " + (MODES[active] ? MODES[active].label : active);
+  document.getElementById("eqNote").textContent = active === "eq"
+    ? "кривая слышна — режим «Эквалайзер» включён"
+    : "кривая применится, но слышна только в режиме «Эквалайзер»";
 }
 
 function buildEq() {
@@ -175,39 +170,44 @@ function buildEq() {
     const d = document.createElement("div");
     d.className = "band";
     d.innerHTML = '<output>0</output><input type="range" min="-12" max="12" step="1" value="0"><span class="n">'
-      + BANDS[i] + '</span>';
-    d.querySelector("input").addEventListener("input", e => {
-      const v = parseInt(e.target.value, 10);
-      state.eq[i] = v;
+      + BANDS[i] + "</span>";
+    d.querySelector("input").addEventListener("input", ev => {
+      const v = parseInt(ev.target.value, 10) || 0;
+      eqState[i] = v;
       d.querySelector("output").textContent = (v > 0 ? "+" : "") + v;
     });
     wrap.appendChild(d);
   }
 }
 
-async function refresh() {
+function paintEq() {
+  document.querySelectorAll("#eq input[type=range]").forEach((inp, i) => {
+    inp.value = eqState[i] || 0;
+    inp.parentElement.querySelector("output").textContent = (eqState[i] > 0 ? "+" : "") + (eqState[i] || 0);
+  });
+}
+
+async function refresh(note) {
   try {
     const text = await sh(SCRIPT + " status");
-    const k = parseStatus(text);
-    state.keys = k;
-    const effOn = (k.__effect || "").indexOf("enabled=true") !== -1;
-    const mode = k.__mode || "dolby";
-    setSw(document.getElementById("swDolby"), effOn && mode !== "eq" && mode !== "off");
-    setSw(document.getElementById("swGeq"), mode === "eq");
-    setSw(document.getElementById("swGeq"), (k.__eqSaved || "") === "on");
-    document.getElementById("effLine").textContent = (k.__effect || "—");
-    const curve = k.__curve || k.__bands;
+    if (note) log(note + "\n" + text); else log(text);
+
+    const mode = (text.match(/^mode:\s*(\S*)/m) || [])[1] || "off";
+    const effLine = (text.match(/^effect:\s*(.+)$/m) || [])[1] || "";
+    const effectOn = effLine.indexOf("enabled=true") !== -1;
+    paintMode(mode, effectOn);
+
+    const curve = (text.match(/^curve:\s*(.+)$/m) || [])[1];
     if (curve) {
-      state.eq = curve.split(",").map(x => parseInt(x, 10) || 0).slice(0, 10);
-      while (state.eq.length < 10) state.eq.push(0);
-      pushEqUi();
+      const vals = curve.split(",").map(x => parseInt(x, 10) || 0);
+      for (let i = 0; i < 10; i++) eqState[i] = vals[i] || 0;
+      paintEq();
     }
-    log(text);
-    // is the effect actually in the audio chain right now?
-    const chain = await sh("dumpsys media.audio_flinger | grep -c 'name: OplusAudioX'");
-    const on = chain.trim() !== "0" && chain.trim() !== "";
-    document.getElementById("chainDot").classList.toggle("on", on);
-    document.getElementById("chainTxt").textContent = on ? "эффект в цепочке" : "эффекта в цепочке нет";
+
+    const chain = (await sh("dumpsys media.audio_flinger | grep -c 'name: OplusAudioX'")).trim();
+    const inChain = chain !== "" && chain !== "0";
+    document.getElementById("chainDot").classList.toggle("on", inChain);
+    document.getElementById("chainTxt").textContent = inChain ? "эффект в цепочке" : "эффекта в цепочке нет";
   } catch (e) {
     log("ошибка: " + e.message);
   }
@@ -215,35 +215,27 @@ async function refresh() {
 
 document.querySelectorAll(".sw").forEach(btn => {
   btn.addEventListener("click", async () => {
-    const now = btn.classList.contains("on");
-    const key = btn.dataset.key;
-    btn.classList.toggle("on", !now);
-    let cmd;
-    if (key === "dolby") {
-      cmd = SCRIPT + " dolby " + (now ? "off" : "on");
-      if (!now) setSw(document.getElementById("swGeq"), false);
-    }
-    if (key === "geq") {
-      cmd = SCRIPT + " eq " + (now ? "off" : "on");
-      if (!now) setSw(document.getElementById("swDolby"), false);
-    }
-    const out = await run(cmd);
-    if (!out || /failed/.test(out)) refresh();
+    const want = btn.dataset.mode;
+    const already = btn.classList.contains("on") && currentMode === want;
+    const out = already ? await run(MODES.off.cmd, "выключаю")
+                        : await run(MODES[want].cmd, "включаю " + MODES[want].label);
+    await refresh(out);
   });
 });
 
 document.getElementById("eqApply").addEventListener("click", async () => {
-  const out = await run(SCRIPT + " eq set " + state.eq.map(v => v || 0).join(" "), "кривая отправлена в эффект");
-  if (out && /applied/.test(out)) refresh();
+  const out = await run(SCRIPT + " eq set " + eqState.join(" "), "кривая отправлена в эффект");
+  await refresh(out);
 });
 
 document.getElementById("eqFlat").addEventListener("click", async () => {
-  state.eq = Array(10).fill(0);
-  pushEqUi();
-  run(SCRIPT + " eq flat", "все полосы в 0");
+  eqState = [0,0,0,0,0,0,0,0,0,0];
+  paintEq();
+  const out = await run(SCRIPT + " eq flat", "все полосы в 0");
+  await refresh(out);
 });
 
-document.getElementById("refresh").addEventListener("click", refresh);
+document.getElementById("refresh").addEventListener("click", () => refresh());
 
 buildEq();
 refresh();
