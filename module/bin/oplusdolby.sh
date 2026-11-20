@@ -108,6 +108,10 @@ vol_index() {
 eq_push() {
     set -- $(echo "$(eq_load)" | tr ',' ' ')
     idx=$(vol_index)
+    # GEQ only exists inside profile 0 - its own state dump shows Geq=1 there and Geq=0
+    # everywhere else, and without that flag the bands are accepted and then ignored.
+    audiox profile 0 >/dev/null 2>&1
+    audiox eq on >/dev/null 2>&1
     audiox eqset "$idx" "$@" >/dev/null && echo "eq applied at volIdx $idx: $(eq_load)"
 }
 
