@@ -199,11 +199,11 @@ case "$1" in
     eq)
         case "$2" in
             '') eq_show ;;
-            on) audiox eq on; state_set eq on; apply system_dolby_geq_state 1 ;;
-            off) audiox eq off; state_set eq off; apply system_dolby_geq_state 0 ;;
-            flat|reset) apply "$EQ_KEY" "0,0,0,0,0,0,0,0,0,0"; eq_store 0 0 0 0 0 0 0 0 0 0; eq_push ;;
+            on) audiox eq on; state_set eq on ;;
+            off) audiox eq off; state_set eq off ;;
+            flat|reset) eq_store 0 0 0 0 0 0 0 0 0 0; eq_push ;;
             set) shift 2; [ $# -eq 10 ] || { echo "usage: eq set <10 values in dB>"; exit 1; }
-                 eq_store "$@"; apply "$EQ_KEY" "$(echo "$*" | tr ' ' ',')"; eq_push ;;
+                 eq_store "$@"; eq_push ;;
             *) [ -n "$3" ] || { echo "usage: eq <band> <dB> | eq flat | eq set <10 dB> | eq on|off"; exit 1; }
                eq_set_one "$2" "$3"; eq_push ;;
         esac
