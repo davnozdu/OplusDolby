@@ -33,3 +33,24 @@ if [ "$broken" = "1" ]; then
     echo "$(date '+%m-%d %H:%M:%S') late check found a broken chain, re-running repair" >> "$LOG"
     sh "$MODDIR/post-fs-data.sh"
 fi
+
+# Re-apply the switches the user asked to keep. They are stored in settings.conf by
+# bin/oplusdolby.sh, and the system is free to reset them (an OTA or a "reset sound
+# settings" clears secure settings), so they are pushed once the settings provider is up.
+CONF=$DATA_DIR/settings.conf
+if [ -f "$CONF" ]; then
+    while IFS='=' read -r key val; do
+        case "$key" in
+            holo_audio_switch|holo_audio_mode|holo_audio_device_type|dolby_dynamic_enter_rate|dolby_dynamic_exit_rate) ;;
+            *) continue ;;
+        esac
+        [ -n "$val" ] || continue
+        cur=$(settings get secure "$key" 2>/dev/null)
+        [ "$cur" = "$val" ] && continue
+        if settings put secure "$key" "$val" 2>>"$LOG"; then
+            echo "$(date '+%m-%d %H:%M:%S') setting $key=$val (was $cur)" >> "$LOG"
+        else
+            echo "$(date '+%m-%d %H:%M:%S') FAILED to set $key=$val" >> "$LOG"
+        fi
+    done < "$CONF"
+fi

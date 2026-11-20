@@ -18,7 +18,7 @@ jobs:
 
       - name: Check the scripts parse
         run: |
-          for f in module/post-fs-data.sh module/service.sh module/uninstall.sh module/customize.sh; do
+          for f in module/post-fs-data.sh module/service.sh module/uninstall.sh module/customize.sh module/action.sh module/bin/oplusdolby.sh; do
             sh -n "$f" || { echo "syntax error in $f"; exit 1; }
           done
 
@@ -26,7 +26,8 @@ jobs:
         run: |
           mkdir -p dist
           cp -f module/module.prop module/customize.sh module/post-fs-data.sh \
-                module/service.sh module/uninstall.sh module/README.md dist/
+                module/service.sh module/action.sh module/uninstall.sh module/README.md dist/
+          mkdir -p dist/bin && cp -f module/bin/oplusdolby.sh dist/bin/
           # module.prop has to sit at the archive root - that is what the installer reads
           test -f dist/module.prop || { echo "module.prop missing from the package"; exit 1; }
           (cd dist && zip -r9 ../OplusDolby.zip .)

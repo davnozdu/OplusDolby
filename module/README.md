@@ -41,6 +41,30 @@ OnePlus/Oplus отдаёт свой Dolby как обычный AIDL-эффек�
 
 Лог: `/data/adb/oplusdolby/log.txt`.
 
+## Настройки эффекта
+
+Вендорное приложение настроек (`com.oplus.audio.effectcenter`) на этом SKU выключено, поэтому
+переключатели HoloAudio правятся напрямую. Значения запоминаются в
+`/data/adb/oplusdolby/settings.conf` и повторно применяются при каждой загрузке — иначе OTA
+или сброс настроек звука их теряет.
+
+```
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh status'   # что сейчас
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh on'       # holo_audio_switch=1
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh off'      # holo_audio_switch=0
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh mode 1'   # holo_audio_mode
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh device 1' # holo_audio_device_type
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh rate 3750 -1'  # dynamic enter/exit
+su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh keep holo_audio_mode'  # перестать форсить
+```
+
+Кнопка «Действие» в менеджере модулей печатает то же, что `status`.
+
+Что означают значения (`holo_audio_mode`, `device_type`, `dolby_dynamic_*`) — это внутренние
+константы Oplus, документации к ним нет: `mode` — целое число профиля, `device_type` —
+тип вывода, `rate` — пороги включения динамической обработки в миллисекундах (−1 = выкл).
+Ставь по одному значению и слушай, что меняется; `keep` возвращает системе управление ключом.
+
 ## Установка
 
 Ставить **на стоковом звуке** — эталон снимается с того, что стоит на телефоне в момент
