@@ -28,6 +28,8 @@ jobs:
           cp -f module/module.prop module/customize.sh module/post-fs-data.sh \
                 module/service.sh module/action.sh module/uninstall.sh module/README.md dist/
           mkdir -p dist/bin && cp -f module/bin/oplusdolby.sh dist/bin/
+          cp -R webroot dist/webroot
+          test -f dist/webroot/index.html || { echo "webroot/index.html missing"; exit 1; }
           # module.prop has to sit at the archive root - that is what the installer reads
           test -f dist/module.prop || { echo "module.prop missing from the package"; exit 1; }
           (cd dist && zip -r9 ../OplusDolby.zip .)

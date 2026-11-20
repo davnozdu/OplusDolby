@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oplus Dolby</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --line: #262c36; --text: #e6edf3;
+    --dim: #8b949e; --accent: #4f9cf9; --on: #2ea043; --off: #30363d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 16px 14px 40px; background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 19px; margin: 4px 0 2px; font-weight: 650; }
+  .sub { color: var(--dim); font-size: 12.5px; margin-bottom: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--dim); margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .label { font-size: 14.5px; }
+  .hint { color: var(--dim); font-size: 11.5px; display: block; margin-top: 1px; }
+  .sw {
+    width: 50px; height: 29px; border-radius: 15px; background: var(--off);
+    position: relative; flex: 0 0 auto; cursor: pointer; transition: background .18s;
+    border: none; padding: 0;
+  }
+  .sw::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 23px; height: 23px;
+    border-radius: 50%; background: #fff; transition: transform .18s;
+  }
+  .sw.on { background: var(--on); }
+  .sw.on::after { transform: translateX(21px); }
+  .eq { display: flex; gap: 4px; align-items: flex-end; justify-content: space-between; padding: 4px 0 0; }
+  .band { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .band output { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .band input[type=range] {
+    -webkit-appearance: slider-vertical; appearance: slider-vertical;
+    width: 26px; height: 140px; margin: 0; background: transparent;
+    accent-color: var(--accent);
+  }
+  .band .n { font-size: 10px; color: var(--dim); }
+  .btns { display: flex; gap: 8px; margin-top: 12px; }
+  button.act {
+    flex: 1; padding: 11px 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: #21262d; color: var(--text); font-size: 14px; font-weight: 550; cursor: pointer;
+  }
+  button.act.primary { background: var(--accent); border-color: var(--accent); color: #04121f; }
+  button.act:active { opacity: .8; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; color: var(--dim); }
+  input[type=number], select {
+    background: #0d1117; border: 1px solid var(--line); color: var(--text);
+    border-radius: 9px; padding: 9px 10px; font-size: 14px; width: 100%;
+  }
+  .log {
+    margin-top: 10px; background: #0b0f14; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--dim); white-space: pre-wrap; max-height: 190px; overflow: auto;
+  }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); }
+  .dot.on { background: var(--on); }
+  .err { color: #f85149; }
+</style>
+</head>
+<body>
+
+<h1>Oplus Dolby</h1>
+<div class="sub">Штатный эффект телефона: <span id="chain" class="pill"><span class="dot" id="chainDot"></span><span id="chainTxt">проверяю…</span></span></div>
+
+<div class="card">
+  <h2>Выключатели</h2>
+  <div class="row">
+    <div><span class="label">Dolby (мастер)</span><span class="hint">system_dolby — весь эффект целиком</span></div>
+    <button class="sw" id="swDolby" data-key="dolby"></button>
+  </div>
+  <div class="row">
+    <div><span class="label">HoloAudio</span><span class="hint">holo_audio_switch — обработка в тракте</span></div>
+    <button class="sw" id="swHolo" data-key="holo"></button>
+  </div>
+  <div class="row">
+    <div><span class="label">Эквалайзер</span><span class="hint">system_dolby_geq_state — 10 полос ниже</span></div>
+    <button class="sw" id="swGeq" data-key="geq"></button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Эквалайзер, дБ</h2>
+  <div class="eq" id="eq"></div>
+  <div class="btns">
+    <button class="act primary" id="eqApply">Применить</button>
+    <button class="act" id="eqFlat">Ровно</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Профиль</h2>
+  <div class="grid">
+    <div class="field">
+      <label>holo_audio_mode</label>
+      <select id="mode">
+        <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+        <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>holo_audio_device_type</label>
+      <input type="number" id="device" min="0" max="99" step="1">
+    </div>
+    <div class="field">
+      <label>dynamic enter, мс</label>
+      <input type="number" id="rateIn" min="-1" step="50">
+    </div>
+    <div class="field">
+      <label>dynamic exit, мс</label>
+      <input type="number" id="rateOut" min="-1" step="50">
+    </div>
+  </div>
+  <div class="btns">
+    <button class="act primary" id="applyProfile">Сохранить</button>
+    <button class="act" id="refresh">Обновить</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Состояние</h2>
+  <div class="log" id="log">…</div>
+</div>
+
+<script>
+const SCRIPT = "sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh";
+
+const BANDS = [31, 62, 125, 250, 500, "1k", "2k", "4k", "8k", "16k"];
+const state = { eq: Array(10).fill(0), keys: {} };
+
+function bridge() {
+  if (window.ksu && typeof window.ksu.exec === "function") return window.ksu.exec.bind(window.ksu);
+  return null;
+}
+
+async function sh(cmd) {
+  const exec = bridge();
+  if (!exec) throw new Error("нет моста KernelSU: открой страницу через кнопку WebUI в менеджере модулей");
+  const res = await exec(cmd);
+  if (res && typeof res === "object") return (res.stdout || "") + (res.stderr || "");
+  return String(res || "");
+}
+
+function log(text) {
+  const el = document.getElementById("log");
+  el.textContent = text.trim() || "—";
+}
+
+function setSw(el, on) {
+  el.classList.toggle("on", !!on);
+}
+
+async function run(cmd, note) {
+  try {
+    const out = await sh(cmd);
+    log((note ? note + "\n" : "") + out);
+    return out;
+  } catch (e) {
+    log("ошибка: " + e.message);
+  }
+}
+
+function parseStatus(text) {
+  const keys = {};
+  text.split("\n").forEach(line => {
+    const m = line.match(/^(\S+)\s+(secure|system)\s+(\S+)/);
+    if (m) keys[m[1]] = m[3];
+    const b = line.match(/^bands:\s*(.+)$/);
+    if (b) keys.__bands = b[1].trim();
+  });
+  return keys;
+}
+
+function pushEqUi() {
+  document.querySelectorAll("#eq input[type=range]").forEach((inp, i) => {
+    inp.value = state.eq[i] ?? 0;
+    inp.parentElement.querySelector("output").textContent = (state.eq[i] > 0 ? "+" : "") + (state.eq[i] ?? 0);
+  });
+}
+
+function buildEq() {
+  const wrap = document.getElementById("eq");
+  wrap.innerHTML = "";
+  for (let i = 0; i < 10; i++) {
+    const d = document.createElement("div");
+    d.className = "band";
+    d.innerHTML = '<output>0</output><input type="range" min="-12" max="12" step="1" value="0"><span class="n">'
+      + BANDS[i] + '</span>';
+    d.querySelector("input").addEventListener("input", e => {
+      const v = parseInt(e.target.value, 10);
+      state.eq[i] = v;
+      d.querySelector("output").textContent = (v > 0 ? "+" : "") + v;
+    });
+    wrap.appendChild(d);
+  }
+}
+
+async function refresh() {
+  try {
+    const text = await sh(SCRIPT + " status");
+    const k = parseStatus(text);
+    state.keys = k;
+    setSw(document.getElementById("swDolby"), k.system_dolby === "1");
+    setSw(document.getElementById("swHolo"), k.holo_audio_switch === "1");
+    setSw(document.getElementById("swGeq"), k.system_dolby_geq_state === "1");
+    if (k.holo_audio_mode !== undefined) document.getElementById("mode").value = k.holo_audio_mode;
+    if (k.holo_audio_device_type !== undefined) document.getElementById("device").value = k.holo_audio_device_type;
+    if (k.dolby_dynamic_enter_rate !== undefined) document.getElementById("rateIn").value = k.dolby_dynamic_enter_rate;
+    if (k.dolby_dynamic_exit_rate !== undefined) document.getElementById("rateOut").value = k.dolby_dynamic_exit_rate;
+    if (k.__bands) {
+      state.eq = k.__bands.split(",").map(x => parseInt(x, 10) || 0).slice(0, 10);
+      while (state.eq.length < 10) state.eq.push(0);
+      pushEqUi();
+    }
+    log(text);
+    // is the effect actually in the audio chain right now?
+    const chain = await sh("dumpsys media.audio_flinger | grep -c 'name: OplusAudioX'");
+    const on = chain.trim() !== "0" && chain.trim() !== "";
+    document.getElementById("chainDot").classList.toggle("on", on);
+    document.getElementById("chainTxt").textContent = on ? "эффект в цепочке" : "эффекта в цепочке нет";
+  } catch (e) {
+    log("ошибка: " + e.message);
+  }
+}
+
+document.querySelectorAll(".sw").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const now = btn.classList.contains("on");
+    const key = btn.dataset.key;
+    btn.classList.toggle("on", !now);
+    let cmd;
+    if (key === "dolby") cmd = SCRIPT + " dolby " + (now ? "off" : "on");
+    if (key === "holo") cmd = SCRIPT + " " + (now ? "off" : "on");
+    if (key === "geq") cmd = SCRIPT + " geq " + (now ? "off" : "on");
+    const out = await run(cmd);
+    if (!out || /failed/.test(out)) refresh();
+  });
+});
+
+document.getElementById("eqApply").addEventListener("click", async () => {
+  for (let i = 0; i < 10; i++) await sh(SCRIPT + " eq " + (i + 1) + " " + (state.eq[i] || 0));
+  run(SCRIPT + " status", "эквалайзер записан");
+});
+
+document.getElementById("eqFlat").addEventListener("click", async () => {
+  state.eq = Array(10).fill(0);
+  pushEqUi();
+  run(SCRIPT + " eq flat", "все полосы в 0");
+});
+
+document.getElementById("applyProfile").addEventListener("click", async () => {
+  const mode = document.getElementById("mode").value;
+  const device = document.getElementById("device").value;
+  const a = document.getElementById("rateIn").value;
+  const b = document.getElementById("rateOut").value;
+  await sh(SCRIPT + " mode " + mode);
+  if (device !== "") await sh(SCRIPT + " device " + device);
+  if (a !== "" && b !== "") await sh(SCRIPT + " rate " + a + " " + b);
+  run(SCRIPT + " status", "профиль сохранён");
+});
+
+document.getElementById("refresh").addEventListener("click", refresh);
+
+buildEq();
+refresh();
+</script>
+</body>
+</html>
