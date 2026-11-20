@@ -61,6 +61,13 @@ restore_lib() {
     return 0
 }
 
+# Device guard: this module only makes sense where the vendor effect already exists. On any
+# other phone there is nothing to repair, and touching /odm there would be wrong.
+if [ ! -f /odm/lib64/soundfx/libOplusAudioxAidl.so ] && [ ! -f "$DATA_DIR/stock/libOplusAudioxAidl.so" ]; then
+    log "no Oplus audiox library on this device, nothing to do"
+    exit 0
+fi
+
 changed=0
 for lib in $LIBS; do
     [ -f "$STOCK/$lib" ] || continue
