@@ -65,10 +65,10 @@ fi
 # The effect keeps no state of its own: audioserver recreates it on every boot, so the profile,
 # the on/off choice, the EQ switch and the curve all have to be handed back. bin/oplusdolby.sh
 # restore does that, retrying while the effect is still being created.
-for try in 1 2 3 4; do
-    out=$(sh "$MODDIR/bin/oplusdolby.sh" restore 2>&1)
-    case "$out" in
-        *"eq applied"*|*"eq=off"*) echo "$(date '+%m-%d %H:%M:%S') restore: $out" >> "$LOG"; break ;;
-        *) echo "$(date '+%m-%d %H:%M:%S') restore try $try: $out" >> "$LOG"; sleep 5 ;;
-    esac
+for try in 1 2 3; do
+    if out=$(sh "$MODDIR/bin/oplusdolby.sh" restore 2>&1); then
+        echo "$(date '+%m-%d %H:%M:%S') restore: $out" >> "$LOG"; break
+    fi
+    echo "$(date '+%m-%d %H:%M:%S') restore try $try failed: $out" >> "$LOG"
+    sleep 4
 done

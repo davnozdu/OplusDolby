@@ -209,10 +209,6 @@ case "$1" in
         ;;
     on)    apply holo_audio_switch 1 ;;
     off)   apply holo_audio_switch 0 ;;
-    dolby) [ -n "$2" ] || { echo "usage: dolby {on|off}"; exit 1; }
-           case "$2" in on) apply system_dolby 1 ;; off) apply system_dolby 0 ;; *) echo "usage: dolby {on|off}"; exit 1 ;; esac ;;
-    geq)   [ -n "$2" ] || { echo "usage: geq {on|off}"; exit 1; }
-           case "$2" in on) apply system_dolby_geq_state 1 ;; off) apply system_dolby_geq_state 0 ;; *) echo "usage: geq {on|off}"; exit 1 ;; esac ;;
     eq)
         case "$2" in
             '') eq_show ;;
