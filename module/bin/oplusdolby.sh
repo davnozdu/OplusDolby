@@ -78,7 +78,11 @@ apply() {
 # own protocol (same keys the disabled vendor app would send).
 audiox() {
     if [ ! -f "$DEX" ]; then echo "audioxctl.dex missing"; return 1; fi
-    CLASSPATH=$DEX app_process /system/bin --nice-name=audioxctl OplusAudiox "$@" 2>&1 | grep -v '^attached '
+    if [ "$1" = "info" ]; then
+        CLASSPATH=$DEX app_process /system/bin --nice-name=audioxctl OplusAudiox info 2>&1
+    else
+        CLASSPATH=$DEX app_process /system/bin --nice-name=audioxctl OplusAudiox "$@" 2>&1 | grep -v '^attached '
+    fi
 }
 
 eq_store() {
@@ -89,10 +93,22 @@ eq_load() {
     [ -f "$EQ_FILE" ] && cat "$EQ_FILE" || echo "0,0,0,0,0,0,0,0,0,0"
 }
 
+# The GEQ curve is stored per media-volume bucket. The vendor app computes the bucket as
+# streamVolume, halved when the stream max is above 100 (this phone has max 160), so the curve
+# has to travel with the *current* bucket or it lands in a shelf that is not in use.
+vol_index() {
+    out=$(dumpsys audio 2>/dev/null)
+    cur=$(echo "$out" | awk '/STREAM_MUSIC:/{f=1} f&&/streamVolume:/{gsub(/[^0-9]/,"");print;exit}')
+    max=$(echo "$out" | awk '/STREAM_MUSIC:/{f=1} f&&/Max:/{gsub(/[^0-9]/,"");print;exit}')
+    [ -n "$cur" ] || cur=0
+    if [ -n "$max" ] && [ "$max" -gt 100 ]; then cur=$((cur / 10)); fi
+    echo "$cur"
+}
+
 eq_push() {
-    # send the stored curve to the effect: eqset <volIdx> <10 bands in dB>
     set -- $(echo "$(eq_load)" | tr ',' ' ')
-    audiox eqset 5 "$@" >/dev/null && echo "eq applied: $(eq_load)"
+    idx=$(vol_index)
+    audiox eqset "$idx" "$@" >/dev/null && echo "eq applied at volIdx $idx: $(eq_load)"
 }
 
 show() {

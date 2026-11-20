@@ -84,10 +84,6 @@
     <button class="sw" id="swDolby" data-key="dolby"></button>
   </div>
   <div class="row">
-    <div><span class="label">HoloAudio</span><span class="hint">holo_audio_switch — обработка в тракте</span></div>
-    <button class="sw" id="swHolo" data-key="holo"></button>
-  </div>
-  <div class="row">
     <div><span class="label">Эквалайзер</span><span class="hint">system_dolby_geq_state — 10 полос ниже</span></div>
     <button class="sw" id="swGeq" data-key="geq"></button>
   </div>
@@ -221,7 +217,6 @@ async function refresh() {
     state.keys = k;
     const effOn = (k.__effect || "").indexOf("enabled=true") !== -1;
     setSw(document.getElementById("swDolby"), effOn);
-    setSw(document.getElementById("swHolo"), k.holo_audio_switch === "1");
     setSw(document.getElementById("swGeq"), k.system_dolby_geq_state === "1");
     document.getElementById("effLine").textContent = (k.__effect || "—");
     if (k.holo_audio_mode !== undefined) document.getElementById("mode").value = k.holo_audio_mode;
@@ -252,7 +247,6 @@ document.querySelectorAll(".sw").forEach(btn => {
     btn.classList.toggle("on", !now);
     let cmd;
     if (key === "dolby") cmd = SCRIPT + " audio " + (now ? "off" : "on");
-    if (key === "holo") cmd = SCRIPT + " " + (now ? "off" : "on");
     if (key === "geq") cmd = SCRIPT + " eq " + (now ? "off" : "on");
     const out = await run(cmd);
     if (!out || /failed/.test(out)) refresh();
