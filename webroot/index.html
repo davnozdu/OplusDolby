@@ -80,15 +80,15 @@
 
 <div class="card">
   <h2>Режим — включён ровно один</h2>
-  <div class="row">
+  <div class="row" data-mode="dolby">
     <div><span class="label">Dolby — максимум</span><span class="hint">профиль 2: полосный компрессор + dynamic EQ</span></div>
     <button class="sw" id="swFull" data-mode="dolby"></button>
   </div>
-  <div class="row">
+  <div class="row" data-mode="dolby_soft">
     <div><span class="label">Dolby — мягкий</span><span class="hint">профиль 5: без агрессивной обработки</span></div>
     <button class="sw" id="swSoft" data-mode="dolby_soft"></button>
   </div>
-  <div class="row">
+  <div class="row" data-mode="eq">
     <div><span class="label">Эквалайзер — свой</span><span class="hint">профиль 0: только 10 полос, обработка Dolby выключена</span></div>
     <button class="sw" id="swEq" data-mode="eq"></button>
   </div>
@@ -241,20 +241,26 @@ async function refresh(note) {
   }
 }
 
-document.querySelectorAll(".sw").forEach(btn => {
-  let busy = false;
-  const handler = async () => {
-    if (busy) return;
-    busy = true;
-    const want = btn.dataset.mode;
-    const already = btn.classList.contains("on") && currentMode === want;
-    const out = already ? await run(MODES.off.cmd, "выключаю")
-                        : await run(MODES[want].cmd, "включаю " + MODES[want].label);
-    await refresh(out);
-    busy = false;
-  };
-  btn.addEventListener("click", handler);
-  btn.addEventListener("touchend", ev => { ev.preventDefault(); handler(); });
+let busy = false;
+
+async function pickMode(want) {
+  if (busy || !want) return;
+  busy = true;
+  const box = document.getElementById("log");
+  box.textContent = "нажато: " + want;
+  // paint immediately so a tap is visibly registered before the shell answers
+  Object.keys(MODES).forEach(k => setOn(MODES[k].sw, k === want));
+  const already = currentMode === want;
+  const out = already ? await run(MODES.off.cmd, "выключаю")
+                      : await run(MODES[want].cmd, "включаю " + MODES[want].label);
+  await refresh(out);
+  busy = false;
+}
+
+document.querySelectorAll(".row[data-mode]").forEach(row => {
+  const mode = row.dataset.mode;
+  row.style.cursor = "pointer";
+  row.addEventListener("pointerdown", ev => { ev.preventDefault(); pickMode(mode); });
 });
 
 document.getElementById("eqApply").addEventListener("click", async () => {
