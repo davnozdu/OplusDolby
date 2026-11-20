@@ -244,8 +244,6 @@ document.querySelectorAll(".sw").forEach(btn => {
   const handler = async () => {
     if (busy) return;
     busy = true;
-    await new Promise(r => setTimeout(r, 120));
-    busy = false;
     const want = btn.dataset.mode;
     const already = btn.classList.contains("on") && currentMode === want;
     const out = already ? await run(MODES.off.cmd, "выключаю")
