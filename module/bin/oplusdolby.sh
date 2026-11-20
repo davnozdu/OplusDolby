@@ -1,51 +1,67 @@
 #!/system/bin/sh
-# Control the phone's own Dolby/HoloAudio switches (the ones the vendor UI would expose,
-# but com.oplus.audio.effectcenter is disabled on this SKU, so there is no screen for them).
+# Control the phone's own Dolby/HoloAudio switches. The vendor UI for them
+# (com.oplus.audio.effectcenter) is disabled on this SKU, so there is no screen for any of it.
 #
-#   oplusdolby.sh status                show the current values
-#   oplusdolby.sh on | off              holo_audio_switch 1 | 0
-#   oplusdolby.sh mode <n>              holo_audio_mode
-#   oplusdolby.sh device <n>            holo_audio_device_type
-#   oplusdolby.sh rate <enter> <exit>   dolby_dynamic_enter_rate / _exit_rate
-#   oplusdolby.sh set <key> <value>     any secure setting by name
-#   oplusdolby.sh keep <key>            stop forcing this key at boot
+#   oplusdolby.sh status                 everything at a glance
+#   oplusdolby.sh on | off               holo_audio_switch          (secure)
+#   oplusdolby.sh dolby on | off         system_dolby               (system, master switch)
+#   oplusdolby.sh geq on | off           system_dolby_geq_state     (system, graphic EQ)
+#   oplusdolby.sh eq                     print the 10 EQ bands
+#   oplusdolby.sh eq <band> <dB>         set one band, 1..10 (negative cuts, positive boosts)
+#   oplusdolby.sh eq flat                all bands back to 0
+#   oplusdolby.sh mode <n>               holo_audio_mode
+#   oplusdolby.sh device <n>             holo_audio_device_type
+#   oplusdolby.sh rate <enter> <exit>    dolby_dynamic_enter_rate / _exit_rate (ms, -1 = off)
+#   oplusdolby.sh set <key> <value>      any key from the table below
+#   oplusdolby.sh keep <key>             stop forcing this key on boot
 #
-# Values given here are remembered in settings.conf and re-applied on every boot, because the
-# system is free to reset these settings after an update.
+# Whatever you set here is remembered in settings.conf and re-applied on every boot, because an
+# OTA or a "reset sound settings" clears these values.
 
 DATA_DIR=/data/adb/oplusdolby
 CONF=$DATA_DIR/settings.conf
 touch "$CONF" 2>/dev/null
 
-KEYS="holo_audio_switch holo_audio_mode holo_audio_device_type dolby_dynamic_enter_rate dolby_dynamic_exit_rate"
+EQ_KEY=system_dolby_music_geq
+EQ_BANDS=10
+
+# key -> namespace. Only these are accepted: writing an unknown key could wake up parts of the
+# vendor audio stack that are deliberately off on this device.
+ns_of() {
+    case "$1" in
+        system_dolby|system_dolby_geq_state|system_dolby_music_geq|sound_effects_enabled) echo system ;;
+        holo_audio_switch|holo_audio_mode|holo_audio_device_type) echo secure ;;
+        dolby_dynamic_enter_rate|dolby_dynamic_exit_rate|oplus_camera_record_dolby) echo secure ;;
+        *) echo "" ;;
+    esac
+}
+
+sec_keys() {
+    echo "holo_audio_switch holo_audio_mode holo_audio_device_type dolby_dynamic_enter_rate dolby_dynamic_exit_rate oplus_camera_record_dolby"
+}
+sys_keys() {
+    echo "system_dolby system_dolby_geq_state system_dolby_music_geq sound_effects_enabled"
+}
 
 conf_set() {
-    key=$1
-    val=$2
-    if grep -q "^$key=" "$CONF" 2>/dev/null; then
-        sed -i "s|^$key=.*|$key=$val|" "$CONF"
+    if grep -q "^$1=" "$CONF" 2>/dev/null; then
+        sed -i "s|^$1=.*|$1=$2|" "$CONF"
     else
-        echo "$key=$val" >> "$CONF"
+        echo "$1=$2" >> "$CONF"
     fi
 }
 
-conf_del() {
-    sed -i "/^$1=/d" "$CONF" 2>/dev/null
-}
+conf_del() { sed -i "/^$1=/d" "$CONF" 2>/dev/null; }
 
-conf_get() {
-    grep "^$1=" "$CONF" 2>/dev/null | tail -1 | cut -d= -f2-
-}
+conf_get() { grep "^$1=" "$CONF" 2>/dev/null | tail -1 | cut -d= -f2-; }
 
 apply() {
     key=$1
     val=$2
-    case "$key" in
-        holo_audio_switch|holo_audio_mode|holo_audio_device_type|dolby_dynamic_enter_rate|dolby_dynamic_exit_rate) ;;
-        *) echo "unknown key: $key"; return 1 ;;
-    esac
-    if settings put secure "$key" "$val" 2>/dev/null; then
-        echo "$key=$val"
+    ns=$(ns_of "$key")
+    [ -n "$ns" ] || { echo "unknown key: $key"; return 1; }
+    if settings put "$ns" "$key" "$val" 2>/dev/null; then
+        echo "$key=$val ($ns)"
         conf_set "$key" "$val"
     else
         echo "failed to write $key"
@@ -53,30 +69,70 @@ apply() {
     fi
 }
 
+show() {
+    key=$1
+    ns=$(ns_of "$key")
+    printf '%-26s %-7s %s' "$key" "$ns" "$(settings get "$ns" "$key" 2>/dev/null)"
+    forced=$(conf_get "$key")
+    [ -n "$forced" ] && printf '   (forced %s)' "$forced"
+    echo
+}
+
+eq_show() {
+    cur=$(settings get system "$EQ_KEY" 2>/dev/null)
+    echo "bands: $cur"
+    n=1
+    echo "$cur" | tr ',' '\n' | while read -r v; do
+        printf '  %2d: %s dB\n' "$n" "${v:-0}"
+        n=$((n + 1))
+    done
+}
+
+eq_set_one() {
+    band=$1
+    val=$2
+    case "$band" in ''|*[!0-9]*) echo "band must be 1..$EQ_BANDS"; return 1 ;; esac
+    [ "$band" -ge 1 ] && [ "$band" -le "$EQ_BANDS" ] || { echo "band must be 1..$EQ_BANDS"; return 1; }
+    cur=$(settings get system "$EQ_KEY" 2>/dev/null)
+    [ -n "$cur" ] || cur=$(printf '0,%.0s' $(seq 1 $((EQ_BANDS - 1))); echo 0)
+    new=$(echo "$cur" | awk -F, -v b="$band" -v v="$val" -v n="$EQ_BANDS" '{
+        for (i = 1; i <= n; i++) {
+            x = (i <= NF) ? $i : 0
+            printf "%s%s", (i == b ? v : x), (i < n ? "," : "\n")
+        }
+    }')
+    apply "$EQ_KEY" "$new"
+}
+
 case "$1" in
     status)
-        for k in $KEYS; do
-            printf '%-26s %s' "$k" "$(settings get secure "$k" 2>/dev/null)"
-            forced=$(conf_get "$k")
-            [ -n "$forced" ] && printf '   (forced to %s at boot)' "$forced"
-            echo
-        done
+        for k in $(sec_keys); do show "$k"; done
+        for k in $(sys_keys); do show "$k"; done
+        [ "$(settings get system "$EQ_KEY" 2>/dev/null)" != "" ] && eq_show
         echo
-        if [ -f "$DATA_DIR/disable" ]; then echo "module: disabled"; else echo "module: enabled"; fi
+        [ -f "$DATA_DIR/disable" ] && echo "module: disabled" || echo "module: enabled"
         ;;
-    on)  apply holo_audio_switch 1 ;;
-    off) apply holo_audio_switch 0 ;;
-    mode) [ -n "$2" ] || { echo "usage: mode <n>"; exit 1; }; apply holo_audio_mode "$2" ;;
+    on)    apply holo_audio_switch 1 ;;
+    off)   apply holo_audio_switch 0 ;;
+    dolby) [ -n "$2" ] || { echo "usage: dolby {on|off}"; exit 1; }
+           case "$2" in on) apply system_dolby 1 ;; off) apply system_dolby 0 ;; *) echo "usage: dolby {on|off}"; exit 1 ;; esac ;;
+    geq)   [ -n "$2" ] || { echo "usage: geq {on|off}"; exit 1; }
+           case "$2" in on) apply system_dolby_geq_state 1 ;; off) apply system_dolby_geq_state 0 ;; *) echo "usage: geq {on|off}"; exit 1 ;; esac ;;
+    eq)
+        case "$2" in
+            '') eq_show ;;
+            flat|reset) apply "$EQ_KEY" "0,0,0,0,0,0,0,0,0,0" ;;
+            *) [ -n "$3" ] || { echo "usage: eq <band> <dB> | eq flat"; exit 1; }; eq_set_one "$2" "$3" ;;
+        esac
+        ;;
+    mode)   [ -n "$2" ] || { echo "usage: mode <n>"; exit 1; }; apply holo_audio_mode "$2" ;;
     device) [ -n "$2" ] || { echo "usage: device <n>"; exit 1; }; apply holo_audio_device_type "$2" ;;
     rate)
         [ -n "$2" ] && [ -n "$3" ] || { echo "usage: rate <enter> <exit>"; exit 1; }
         apply dolby_dynamic_enter_rate "$2"
         apply dolby_dynamic_exit_rate "$3"
         ;;
-    set) [ -n "$2" ] && [ -n "$3" ] || { echo "usage: set <key> <value>"; exit 1; }; apply "$2" "$3" ;;
+    set)  [ -n "$2" ] && [ -n "$3" ] || { echo "usage: set <key> <value>"; exit 1; }; apply "$2" "$3" ;;
     keep) [ -n "$2" ] || { echo "usage: keep <key>"; exit 1; }; conf_del "$2"; echo "$2 no longer forced" ;;
-    *)
-        echo "usage: $0 {status|on|off|mode <n>|device <n>|rate <enter> <exit>|set <key> <value>|keep <key>}"
-        exit 1
-        ;;
+    *)    sed -n '3,20p' "$0" ;;
 esac

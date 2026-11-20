@@ -44,26 +44,43 @@ OnePlus/Oplus отдаёт свой Dolby как обычный AIDL-эффек�
 ## Настройки эффекта
 
 Вендорное приложение настроек (`com.oplus.audio.effectcenter`) на этом SKU выключено, поэтому
-переключатели HoloAudio правятся напрямую. Значения запоминаются в
-`/data/adb/oplusdolby/settings.conf` и повторно применяются при каждой загрузке — иначе OTA
-или сброс настроек звука их теряет.
+все переключатели правятся напрямую. Значения запоминаются в `/data/adb/oplusdolby/settings.conf`
+и повторно применяются при каждой загрузке — иначе OTA или сброс настроек звука их теряет.
 
 ```
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh status'   # что сейчас
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh on'       # holo_audio_switch=1
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh off'      # holo_audio_switch=0
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh mode 1'   # holo_audio_mode
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh device 1' # holo_audio_device_type
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh rate 3750 -1'  # dynamic enter/exit
-su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh keep holo_audio_mode'  # перестать форсить
+sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh status
+
+sh .../oplusdolby.sh on | off              # holo_audio_switch (secure)
+sh .../oplusdolby.sh dolby on | off        # system_dolby — главный выключатель (system)
+sh .../oplusdolby.sh geq on | off          # system_dolby_geq_state — эквалайзер вкл/выкл
+sh .../oplusdolby.sh eq                    # показать 10 полос
+sh .../oplusdolby.sh eq 3 -4               # 3-я полоса в −4 дБ
+sh .../oplusdolby.sh eq flat               # все полосы в 0
+sh .../oplusdolby.sh mode 1                # holo_audio_mode
+sh .../oplusdolby.sh device 1              # holo_audio_device_type
+sh .../oplusdolby.sh rate 3750 -1          # динамика: порог вкл / выкл, мс (−1 = выкл)
+sh .../oplusdolby.sh set <key> <value>     # любой ключ из таблицы
+sh .../oplusdolby.sh keep <key>            # перестать форсить ключ
 ```
 
-Кнопка «Действие» в менеджере модулей печатает то же, что `status`.
+Под root: `su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh status'`.
+Кнопка «Действие» в менеджере модулей печатает то же самое.
 
-Что означают значения (`holo_audio_mode`, `device_type`, `dolby_dynamic_*`) — это внутренние
-константы Oplus, документации к ним нет: `mode` — целое число профиля, `device_type` —
-тип вывода, `rate` — пороги включения динамической обработки в миллисекундах (−1 = выкл).
-Ставь по одному значению и слушай, что меняется; `keep` возвращает системе управление ключом.
+| ключ | namespace | что делает |
+|---|---|---|
+| `holo_audio_switch` | secure | основной переключатель HoloAudio |
+| `holo_audio_mode` | secure | профиль (целое, значения внутренние для Oplus) |
+| `holo_audio_device_type` | secure | тип вывода |
+| `dolby_dynamic_enter_rate` | secure | порог включения динамической обработки, мс |
+| `dolby_dynamic_exit_rate` | secure | порог выключения, мс (−1 = никогда) |
+| `oplus_camera_record_dolby` | secure | Dolby в записи видео с камеры |
+| `system_dolby` | system | главный выключатель Dolby |
+| `system_dolby_geq_state` | system | включён ли графический эквалайзер |
+| `system_dolby_music_geq` | system | 10 полос эквалайзера, dB через запятую |
+| `sound_effects_enabled` | system | общий тумблер системных эффектов |
+
+Про `mode` и `device_type` документации нет: это внутренние константы Oplus. Меняй по одному
+значению и слушай. `keep` возвращает ключ системе, `status` показывает, что форсится сейчас.
 
 ## Установка
 

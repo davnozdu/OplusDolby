@@ -38,19 +38,26 @@ fi
 # bin/oplusdolby.sh, and the system is free to reset them (an OTA or a "reset sound
 # settings" clears secure settings), so they are pushed once the settings provider is up.
 CONF=$DATA_DIR/settings.conf
+ns_of() {
+    case "$1" in
+        system_dolby|system_dolby_geq_state|system_dolby_music_geq|sound_effects_enabled) echo system ;;
+        holo_audio_switch|holo_audio_mode|holo_audio_device_type) echo secure ;;
+        dolby_dynamic_enter_rate|dolby_dynamic_exit_rate|oplus_camera_record_dolby) echo secure ;;
+        *) echo "" ;;
+    esac
+}
 if [ -f "$CONF" ]; then
     while IFS='=' read -r key val; do
-        case "$key" in
-            holo_audio_switch|holo_audio_mode|holo_audio_device_type|dolby_dynamic_enter_rate|dolby_dynamic_exit_rate) ;;
-            *) continue ;;
-        esac
+        [ -n "$key" ] || continue
+        ns=$(ns_of "$key")
+        [ -n "$ns" ] || continue
         [ -n "$val" ] || continue
-        cur=$(settings get secure "$key" 2>/dev/null)
+        cur=$(settings get "$ns" "$key" 2>/dev/null)
         [ "$cur" = "$val" ] && continue
-        if settings put secure "$key" "$val" 2>>"$LOG"; then
-            echo "$(date '+%m-%d %H:%M:%S') setting $key=$val (was $cur)" >> "$LOG"
+        if settings put "$ns" "$key" "$val" 2>>"$LOG"; then
+            echo "$(date '+%m-%d %H:%M:%S') setting $ns/$key=$val (was $cur)" >> "$LOG"
         else
-            echo "$(date '+%m-%d %H:%M:%S') FAILED to set $key=$val" >> "$LOG"
+            echo "$(date '+%m-%d %H:%M:%S') FAILED to set $ns/$key=$val" >> "$LOG"
         fi
     done < "$CONF"
 fi
