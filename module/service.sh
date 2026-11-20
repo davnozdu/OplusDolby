@@ -62,15 +62,13 @@ if [ -f "$CONF" ]; then
     done < "$CONF"
 fi
 
-# The effect keeps no state of its own, so the curve has to be handed to it again after a reboot
-# (and after the effect has been recreated). Failure here is not fatal: audio is unaffected.
-EQ_FILE=$DATA_DIR/eq.txt
-if [ -f "$EQ_FILE" ]; then
-    for try in 1 2 3; do
-        out=$(sh "$MODDIR/bin/oplusdolby.sh" eq set $(cat "$EQ_FILE" | tr ',' ' ') 2>&1)
-        case "$out" in
-            *"eq applied"*) echo "$(date '+%m-%d %H:%M:%S') eq restored: $(cat "$EQ_FILE")" >> "$LOG"; break ;;
-            *) echo "$(date '+%m-%d %H:%M:%S') eq restore try $try failed: $out" >> "$LOG"; sleep 5 ;;
-        esac
-    done
-fi
+# The effect keeps no state of its own: audioserver recreates it on every boot, so the profile,
+# the on/off choice, the EQ switch and the curve all have to be handed back. bin/oplusdolby.sh
+# restore does that, retrying while the effect is still being created.
+for try in 1 2 3 4; do
+    out=$(sh "$MODDIR/bin/oplusdolby.sh" restore 2>&1)
+    case "$out" in
+        *"eq applied"*|*"eq=off"*) echo "$(date '+%m-%d %H:%M:%S') restore: $out" >> "$LOG"; break ;;
+        *) echo "$(date '+%m-%d %H:%M:%S') restore try $try: $out" >> "$LOG"; sleep 5 ;;
+    esac
+done

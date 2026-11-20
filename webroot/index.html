@@ -180,6 +180,8 @@ function parseStatus(text) {
     if (b) keys.__bands = b[1].trim();
     const c = line.match(/^curve:\s*(.+)$/);
     if (c) keys.__curve = c[1].trim();
+    const sv = line.match(/^saved:\s*audio=(\S*)\s*eq=(\S*)\s*profile=(\S*)$/);
+    if (sv) { keys.__audio = sv[1]; keys.__eqSaved = sv[2]; }
     const e = line.match(/^effect:\s*(.+)$/);
     if (e) keys.__effect = e[1].trim();
   });
@@ -217,7 +219,7 @@ async function refresh() {
     state.keys = k;
     const effOn = (k.__effect || "").indexOf("enabled=true") !== -1;
     setSw(document.getElementById("swDolby"), effOn);
-    setSw(document.getElementById("swGeq"), k.system_dolby_geq_state === "1");
+    setSw(document.getElementById("swGeq"), (k.__eqSaved || "") === "on");
     document.getElementById("effLine").textContent = (k.__effect || "—");
     if (k.holo_audio_mode !== undefined) document.getElementById("mode").value = k.holo_audio_mode;
     if (k.holo_audio_device_type !== undefined) document.getElementById("device").value = k.holo_audio_device_type;

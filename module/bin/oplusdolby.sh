@@ -24,6 +24,7 @@ DATA_DIR=/data/adb/oplusdolby
 CONF=$DATA_DIR/settings.conf
 DEX=/data/adb/modules/oplusdolby/bin/audioxctl.dex
 EQ_FILE=$DATA_DIR/eq.txt
+STATE=$DATA_DIR/state.conf
 touch "$CONF" 2>/dev/null
 
 EQ_KEY=system_dolby_music_geq
@@ -85,6 +86,21 @@ audiox() {
     fi
 }
 
+# What the user chose, kept across reboots: the effect itself forgets everything when
+# audioserver recreates it, and the vendor stack does not remember our choices either.
+state_set() {
+    touch "$STATE" 2>/dev/null
+    if grep -q "^$1=" "$STATE" 2>/dev/null; then
+        sed -i "s|^$1=.*|$1=$2|" "$STATE"
+    else
+        echo "$1=$2" >> "$STATE"
+    fi
+}
+
+state_get() {
+    grep "^$1=" "$STATE" 2>/dev/null | tail -1 | cut -d= -f2-
+}
+
 eq_store() {
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$@" > "$EQ_FILE"
 }
@@ -112,6 +128,8 @@ eq_push() {
     # everywhere else, and without that flag the bands are accepted and then ignored.
     audiox profile 0 >/dev/null 2>&1
     audiox eq on >/dev/null 2>&1
+    state_set profile 0
+    state_set eq on
     audiox eqset "$idx" "$@" >/dev/null && echo "eq applied at volIdx $idx: $(eq_load)"
 }
 
@@ -157,8 +175,20 @@ case "$1" in
         [ "$(settings get system "$EQ_KEY" 2>/dev/null)" != "" ] && eq_show
         echo
         echo "curve:  $(eq_load)"
+        echo "saved:  audio=$(state_get audio) eq=$(state_get eq) profile=$(state_get profile)"
         echo "effect: $(audiox info | tr '\n' ' ')"
         [ -f "$DATA_DIR/disable" ] && echo "module: disabled" || echo "module: enabled"
+        ;;
+    restore)
+        prof=$(state_get profile); [ -n "$prof" ] || prof=0
+        audiox profile "$prof" >/dev/null 2>&1
+        if [ "$(state_get audio)" = "off" ]; then audiox off >/dev/null 2>&1; else audiox on >/dev/null 2>&1; fi
+        if [ "$(state_get eq)" = "off" ]; then
+            audiox eq off >/dev/null 2>&1
+            echo "restored: audio=$(state_get audio) eq=off profile=$prof"
+        else
+            eq_push
+        fi
         ;;
     on)    apply holo_audio_switch 1 ;;
     off)   apply holo_audio_switch 0 ;;
@@ -169,8 +199,8 @@ case "$1" in
     eq)
         case "$2" in
             '') eq_show ;;
-            on) audiox eq on; apply system_dolby_geq_state 1 ;;
-            off) audiox eq off; apply system_dolby_geq_state 0 ;;
+            on) audiox eq on; state_set eq on; apply system_dolby_geq_state 1 ;;
+            off) audiox eq off; state_set eq off; apply system_dolby_geq_state 0 ;;
             flat|reset) apply "$EQ_KEY" "0,0,0,0,0,0,0,0,0,0"; eq_store 0 0 0 0 0 0 0 0 0 0; eq_push ;;
             set) shift 2; [ $# -eq 10 ] || { echo "usage: eq set <10 values in dB>"; exit 1; }
                  eq_store "$@"; apply "$EQ_KEY" "$(echo "$*" | tr ' ' ',')"; eq_push ;;
@@ -178,8 +208,13 @@ case "$1" in
                eq_set_one "$2" "$3"; eq_push ;;
         esac
         ;;
-    audio)  case "$2" in on) audiox on ;; off) audiox off ;; *) echo "usage: audio {on|off}" ;; esac ;;
-    profile) [ -n "$2" ] || { echo "usage: profile <0..14>"; exit 1; }; audiox profile "$2" ;;
+    audio)  case "$2" in
+                on) audiox on; state_set audio on ;;
+                off) audiox off; state_set audio off ;;
+                *) echo "usage: audio {on|off}" ;;
+            esac ;;
+    profile) [ -n "$2" ] || { echo "usage: profile <0..14>"; exit 1; }
+             audiox profile "$2"; state_set profile "$2" ;;
     atten)  [ -n "$2" ] || { echo "usage: atten <dB>"; exit 1; }; audiox atten "$2" ;;
     enhance) [ -n "$2" ] || { echo "usage: enhance {on|off}"; exit 1; }; audiox enhance "$2" ;;
     mode)   [ -n "$2" ] || { echo "usage: mode <n>"; exit 1; }; apply holo_audio_mode "$2" ;;
