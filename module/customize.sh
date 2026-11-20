@@ -21,3 +21,10 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 mkdir -p /data/adb/oplusdolby
 ui_print "- switches: su -c 'sh /data/adb/modules/oplusdolby/bin/oplusdolby.sh status'"
 ui_print "- done, reboot to let it check the effect libraries"
+
+# Dolby max is what the module is installed for, so a fresh install starts in that mode.
+mkdir -p /data/adb/oplusdolby
+if [ ! -f /data/adb/oplusdolby/state.conf ]; then
+    printf 'mode=dolby\naudio=on\neq=off\nprofile=2\n' > /data/adb/oplusdolby/state.conf
+    ui_print "- default mode: Dolby max (profile 2)"
+fi
