@@ -141,22 +141,18 @@ function execRaw(cmd) {
   return new Promise(resolve => {
     let done = false;
     const finish = v => { if (!done) { done = true; resolve(v); } };
-    const cb = (errno, stdout, stderr) => finish({ errno, stdout, stderr });
     let ret;
-    try { ret = exec(cmd, {}, cb); } catch (e) { try { ret = exec(cmd); } catch (e2) { return finish({ errno: -1, stdout: "", stderr: String(e2) }); } }
-    if (ret && typeof ret.then === "function") { ret.then(finish, e => finish({ errno: -1, stdout: "", stderr: String((e && e.message) || e) })); }
-    else if (ret && typeof ret === "object") finish(ret);
-    else if (typeof ret === "string") finish({ errno: 0, stdout: ret, stderr: "" });
+    try { ret = exec(cmd); } catch (e) { ret = undefined; }
+    if (ret && typeof ret.then === "function") {
+      ret.then(finish, e => finish({ errno: -1, stdout: "", stderr: String((e && e.message) || e) }));
+      return;
+    }
+    if (ret && typeof ret === "object") { finish(ret); return; }
+    if (typeof ret === "string") { finish({ errno: 0, stdout: ret, stderr: "" }); return; }
+    // older callback-shaped bridge: only reached when the plain call returned nothing
+    try { exec(cmd, {}, (errno, stdout, stderr) => finish({ errno, stdout, stderr })); } catch (e) {}
     setTimeout(() => finish({ errno: -1, stdout: "", stderr: "timeout: мост не ответил" }), 15000);
   });
-}
-
-function shellQuote(str) {
-  return "'" + String(str).replace(/'/g, "'\\''") + "'";
-}
-
-async function note(text) {
-  try { await execRaw("printf '%s\\n' " + shellQuote("[ui] " + text) + " >> /data/adb/oplusdolby/ui.log"); } catch (e) {}
 }
 
 async function sh(cmd) {
