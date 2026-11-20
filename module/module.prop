@@ -1,6 +1,6 @@
 id=oplusdolby
 name=Oplus Dolby (stock)
-version=v1.3.0
-versionCode=130
+version=v1.4.0
+versionCode=140
 author=davnozdu
-description=Keeps the phone's own Oplus/HoloAudio "Dolby" effect in place. It restores the stock effect libraries and the effect entry in the audio config if another module or update replaces them, so the effect stays in the audio chain. No DSP of its own, battery cost is zero. Also exposes the phone's own HoloAudio switches (holo_audio_switch, holo_audio_mode, device type, dynamic rates) through a WebUI (master switch, 10-band graphic EQ, profile, device type, dynamic rates) and bin/oplusdolby.sh, because the vendor settings app is disabled on this SKU.
+description=Keeps the phone's own Oplus/HoloAudio "Dolby" effect in place. It restores the stock effect libraries and the effect entry in the audio config if another module or update replaces them, so the effect stays in the audio chain. No DSP of its own, battery cost is zero. Also exposes the phone's own HoloAudio switches (holo_audio_switch, holo_audio_mode, device type, dynamic rates) for real through its own parameter protocol (master switch, 10-band graphic EQ, profile, attenuation) exposed in a WebUI and bin/oplusdolby.sh, because the vendor settings app is disabled on this SKU.

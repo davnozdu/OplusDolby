@@ -61,3 +61,16 @@ if [ -f "$CONF" ]; then
         fi
     done < "$CONF"
 fi
+
+# The effect keeps no state of its own, so the curve has to be handed to it again after a reboot
+# (and after the effect has been recreated). Failure here is not fatal: audio is unaffected.
+EQ_FILE=$DATA_DIR/eq.txt
+if [ -f "$EQ_FILE" ]; then
+    for try in 1 2 3; do
+        out=$(sh "$MODDIR/bin/oplusdolby.sh" eq set $(cat "$EQ_FILE" | tr ',' ' ') 2>&1)
+        case "$out" in
+            *"eq applied"*) echo "$(date '+%m-%d %H:%M:%S') eq restored: $(cat "$EQ_FILE")" >> "$LOG"; break ;;
+            *) echo "$(date '+%m-%d %H:%M:%S') eq restore try $try failed: $out" >> "$LOG"; sleep 5 ;;
+        esac
+    done
+fi

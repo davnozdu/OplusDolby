@@ -65,6 +65,7 @@
     padding: 10px; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
     color: var(--dim); white-space: pre-wrap; max-height: 190px; overflow: auto;
   }
+  .eff { font: 11.5px/1.4 ui-monospace, Menlo, monospace; color: var(--dim); margin-bottom: 8px; word-break: break-all; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); }
   .dot.on { background: var(--on); }
@@ -132,6 +133,7 @@
 
 <div class="card">
   <h2>Состояние</h2>
+  <div class="eff" id="effLine">—</div>
   <div class="log" id="log">…</div>
 </div>
 
@@ -180,6 +182,10 @@ function parseStatus(text) {
     if (m) keys[m[1]] = m[3];
     const b = line.match(/^bands:\s*(.+)$/);
     if (b) keys.__bands = b[1].trim();
+    const c = line.match(/^curve:\s*(.+)$/);
+    if (c) keys.__curve = c[1].trim();
+    const e = line.match(/^effect:\s*(.+)$/);
+    if (e) keys.__effect = e[1].trim();
   });
   return keys;
 }
@@ -213,15 +219,18 @@ async function refresh() {
     const text = await sh(SCRIPT + " status");
     const k = parseStatus(text);
     state.keys = k;
-    setSw(document.getElementById("swDolby"), k.system_dolby === "1");
+    const effOn = (k.__effect || "").indexOf("enabled=true") !== -1;
+    setSw(document.getElementById("swDolby"), effOn);
     setSw(document.getElementById("swHolo"), k.holo_audio_switch === "1");
     setSw(document.getElementById("swGeq"), k.system_dolby_geq_state === "1");
+    document.getElementById("effLine").textContent = (k.__effect || "—");
     if (k.holo_audio_mode !== undefined) document.getElementById("mode").value = k.holo_audio_mode;
     if (k.holo_audio_device_type !== undefined) document.getElementById("device").value = k.holo_audio_device_type;
     if (k.dolby_dynamic_enter_rate !== undefined) document.getElementById("rateIn").value = k.dolby_dynamic_enter_rate;
     if (k.dolby_dynamic_exit_rate !== undefined) document.getElementById("rateOut").value = k.dolby_dynamic_exit_rate;
-    if (k.__bands) {
-      state.eq = k.__bands.split(",").map(x => parseInt(x, 10) || 0).slice(0, 10);
+    const curve = k.__curve || k.__bands;
+    if (curve) {
+      state.eq = curve.split(",").map(x => parseInt(x, 10) || 0).slice(0, 10);
       while (state.eq.length < 10) state.eq.push(0);
       pushEqUi();
     }
@@ -242,17 +251,17 @@ document.querySelectorAll(".sw").forEach(btn => {
     const key = btn.dataset.key;
     btn.classList.toggle("on", !now);
     let cmd;
-    if (key === "dolby") cmd = SCRIPT + " dolby " + (now ? "off" : "on");
+    if (key === "dolby") cmd = SCRIPT + " audio " + (now ? "off" : "on");
     if (key === "holo") cmd = SCRIPT + " " + (now ? "off" : "on");
-    if (key === "geq") cmd = SCRIPT + " geq " + (now ? "off" : "on");
+    if (key === "geq") cmd = SCRIPT + " eq " + (now ? "off" : "on");
     const out = await run(cmd);
     if (!out || /failed/.test(out)) refresh();
   });
 });
 
 document.getElementById("eqApply").addEventListener("click", async () => {
-  for (let i = 0; i < 10; i++) await sh(SCRIPT + " eq " + (i + 1) + " " + (state.eq[i] || 0));
-  run(SCRIPT + " status", "эквалайзер записан");
+  const out = await run(SCRIPT + " eq set " + state.eq.map(v => v || 0).join(" "), "кривая отправлена в эффект");
+  if (out && /applied/.test(out)) refresh();
 });
 
 document.getElementById("eqFlat").addEventListener("click", async () => {

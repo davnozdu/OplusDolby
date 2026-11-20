@@ -8,6 +8,8 @@
 #   oplusdolby.sh geq on | off           system_dolby_geq_state     (system, graphic EQ)
 #   oplusdolby.sh eq                     print the 10 EQ bands
 #   oplusdolby.sh eq <band> <dB>         set one band, 1..10 (negative cuts, positive boosts)
+#   oplusdolby.sh eq set <10 dB>         replace the whole curve
+#   oplusdolby.sh audio on | off         real master switch (AudioEffect.setEnabled)
 #   oplusdolby.sh eq flat                all bands back to 0
 #   oplusdolby.sh mode <n>               holo_audio_mode
 #   oplusdolby.sh device <n>             holo_audio_device_type
@@ -20,6 +22,8 @@
 
 DATA_DIR=/data/adb/oplusdolby
 CONF=$DATA_DIR/settings.conf
+DEX=/data/adb/modules/oplusdolby/bin/audioxctl.dex
+EQ_FILE=$DATA_DIR/eq.txt
 touch "$CONF" 2>/dev/null
 
 EQ_KEY=system_dolby_music_geq
@@ -69,6 +73,28 @@ apply() {
     fi
 }
 
+# The settings keys above only change how the vendor stack *would* behave; nothing audible
+# happens until the effect itself gets parameters. This runs our dex, which speaks the effect's
+# own protocol (same keys the disabled vendor app would send).
+audiox() {
+    if [ ! -f "$DEX" ]; then echo "audioxctl.dex missing"; return 1; fi
+    CLASSPATH=$DEX app_process /system/bin --nice-name=audioxctl OplusAudiox "$@" 2>&1 | grep -v '^attached '
+}
+
+eq_store() {
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$@" > "$EQ_FILE"
+}
+
+eq_load() {
+    [ -f "$EQ_FILE" ] && cat "$EQ_FILE" || echo "0,0,0,0,0,0,0,0,0,0"
+}
+
+eq_push() {
+    # send the stored curve to the effect: eqset <volIdx> <10 bands in dB>
+    set -- $(echo "$(eq_load)" | tr ',' ' ')
+    audiox eqset 5 "$@" >/dev/null && echo "eq applied: $(eq_load)"
+}
+
 show() {
     key=$1
     ns=$(ns_of "$key")
@@ -110,6 +136,8 @@ case "$1" in
         for k in $(sys_keys); do show "$k"; done
         [ "$(settings get system "$EQ_KEY" 2>/dev/null)" != "" ] && eq_show
         echo
+        echo "curve:  $(eq_load)"
+        echo "effect: $(audiox info | tr '\n' ' ')"
         [ -f "$DATA_DIR/disable" ] && echo "module: disabled" || echo "module: enabled"
         ;;
     on)    apply holo_audio_switch 1 ;;
@@ -121,10 +149,19 @@ case "$1" in
     eq)
         case "$2" in
             '') eq_show ;;
-            flat|reset) apply "$EQ_KEY" "0,0,0,0,0,0,0,0,0,0" ;;
-            *) [ -n "$3" ] || { echo "usage: eq <band> <dB> | eq flat"; exit 1; }; eq_set_one "$2" "$3" ;;
+            on) audiox eq on; apply system_dolby_geq_state 1 ;;
+            off) audiox eq off; apply system_dolby_geq_state 0 ;;
+            flat|reset) apply "$EQ_KEY" "0,0,0,0,0,0,0,0,0,0"; eq_store 0 0 0 0 0 0 0 0 0 0; eq_push ;;
+            set) shift 2; [ $# -eq 10 ] || { echo "usage: eq set <10 values in dB>"; exit 1; }
+                 eq_store "$@"; apply "$EQ_KEY" "$(echo "$*" | tr ' ' ',')"; eq_push ;;
+            *) [ -n "$3" ] || { echo "usage: eq <band> <dB> | eq flat | eq set <10 dB> | eq on|off"; exit 1; }
+               eq_set_one "$2" "$3"; eq_push ;;
         esac
         ;;
+    audio)  case "$2" in on) audiox on ;; off) audiox off ;; *) echo "usage: audio {on|off}" ;; esac ;;
+    profile) [ -n "$2" ] || { echo "usage: profile <0..14>"; exit 1; }; audiox profile "$2" ;;
+    atten)  [ -n "$2" ] || { echo "usage: atten <dB>"; exit 1; }; audiox atten "$2" ;;
+    enhance) [ -n "$2" ] || { echo "usage: enhance {on|off}"; exit 1; }; audiox enhance "$2" ;;
     mode)   [ -n "$2" ] || { echo "usage: mode <n>"; exit 1; }; apply holo_audio_mode "$2" ;;
     device) [ -n "$2" ] || { echo "usage: device <n>"; exit 1; }; apply holo_audio_device_type "$2" ;;
     rate)
