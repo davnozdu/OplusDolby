@@ -217,14 +217,14 @@ function paintEq() {
 
 async function refresh(note) {
   try {
-    const text = await sh(SCRIPT + " fast");
+    const text = await sh(SCRIPT + " ui");
     if (note) log(note + "\n" + text); else log(text);
 
-    const mode = (text.match(/^mode:\s*(\S*)/m) || [])[1] || "off";
-    const audio = (text.match(/^audio:\s*(\S*)/m) || [])[1] || "off";
+    const mode = (text.match(/MODE=(\S*)/) || text.match(/^mode:\s*(\S*)/m) || [])[1] || "off";
+    const audio = (text.match(/AUDIO=(\S*)/) || text.match(/^audio:\s*(\S*)/m) || [])[1] || "off";
     paintMode(mode, audio === "on");
 
-    const curve = (text.match(/^curve:\s*(.+)$/m) || [])[1];
+    const curve = (text.match(/CURVE=(\S+)/) || text.match(/^curve:\s*(.+)$/m) || [])[1];
     if (curve) {
       const vals = curve.split(",").map(x => parseInt(x, 10) || 0);
       for (let i = 0; i < 10; i++) eqState[i] = vals[i] || 0;
@@ -240,13 +240,21 @@ async function refresh(note) {
 }
 
 document.querySelectorAll(".sw").forEach(btn => {
-  btn.addEventListener("click", async () => {
+  let busy = false;
+  const handler = async () => {
+    if (busy) return;
+    busy = true;
+    await new Promise(r => setTimeout(r, 120));
+    busy = false;
     const want = btn.dataset.mode;
     const already = btn.classList.contains("on") && currentMode === want;
     const out = already ? await run(MODES.off.cmd, "выключаю")
                         : await run(MODES[want].cmd, "включаю " + MODES[want].label);
     await refresh(out);
-  });
+    busy = false;
+  };
+  btn.addEventListener("click", handler);
+  btn.addEventListener("touchend", ev => { ev.preventDefault(); handler(); });
 });
 
 document.getElementById("eqApply").addEventListener("click", async () => {

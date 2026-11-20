@@ -192,6 +192,11 @@ eq_set_one() {
 }
 
 case "$1" in
+    # One single line, because the WebUI bridge hands the page only the last line of stdout.
+    ui)
+        printf 'MODE=%s AUDIO=%s PROFILE=%s CURVE=%s\n' \
+            "$(state_get mode)" "$(state_get audio)" "$(state_get profile)" "$(eq_load)"
+        ;;
     fast)
         echo "mode:   $(state_get mode)"
         echo "profile: $(state_get profile)"
