@@ -166,6 +166,8 @@ function log(text) {
 }
 
 async function run(cmd, note) {
+  const box = document.getElementById("log");
+  box.textContent = "→ " + cmd + (note ? "\n" + note : "");
   try {
     const out = await sh(cmd);
     log((note ? note + "\n" : "") + out);
@@ -271,7 +273,7 @@ document.getElementById("refresh").addEventListener("click", () => refresh());
 
 document.getElementById("selftest").addEventListener("click", async () => {
   try {
-    const res = await execRaw("id; echo rc=$?");
+    const res = await execRaw(SCRIPT + " ui");
     log("мост: " + JSON.stringify(res));
   } catch (e) {
     log("мост недоступен: " + e.message);

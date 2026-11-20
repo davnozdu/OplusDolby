@@ -25,6 +25,9 @@ CONF=$DATA_DIR/settings.conf
 DEX=/data/adb/modules/oplusdolby/bin/audioxctl.dex
 EQ_FILE=$DATA_DIR/eq.txt
 STATE=$DATA_DIR/state.conf
+UI_LOG=$DATA_DIR/ui.log
+mkdir -p "$DATA_DIR" 2>/dev/null
+echo "$(date '+%m-%d %H:%M:%S') $*" >> "$UI_LOG" 2>/dev/null
 touch "$CONF" 2>/dev/null
 
 EQ_KEY=system_dolby_music_geq
