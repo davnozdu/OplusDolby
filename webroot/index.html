@@ -184,8 +184,8 @@ function setOn(id, on) {
 }
 
 function paintMode(mode, effectOn) {
-  currentMode = mode || "off";
-  const active = effectOn ? currentMode : "off";
+  const active = effectOn ? (mode || "off") : "off";
+  currentMode = active;
   Object.keys(MODES).forEach(k => setOn(MODES[k].sw, k === active && k !== "off"));
   document.getElementById("modeLine").textContent = "режим: " + (MODES[active] ? MODES[active].label : active);
   document.getElementById("eqNote").textContent = active === "eq"
@@ -246,15 +246,18 @@ let busy = false;
 async function pickMode(want) {
   if (busy || !want) return;
   busy = true;
-  const box = document.getElementById("log");
-  box.textContent = "нажато: " + want;
-  // paint immediately so a tap is visibly registered before the shell answers
-  Object.keys(MODES).forEach(k => setOn(MODES[k].sw, k === want));
-  const already = currentMode === want;
-  const out = already ? await run(MODES.off.cmd, "выключаю")
-                      : await run(MODES[want].cmd, "включаю " + MODES[want].label);
-  await refresh(out);
-  busy = false;
+  try {
+    const box = document.getElementById("log");
+    box.textContent = "нажато: " + want;
+    // paint immediately so a tap is visibly registered before the shell answers
+    const already = currentMode === want;
+    Object.keys(MODES).forEach(k => setOn(MODES[k].sw, !already && k === want));
+    const out = already ? await run(SCRIPT + " " + MODES.off.cmd, "выключаю")
+                        : await run(SCRIPT + " " + MODES[want].cmd, "включаю " + MODES[want].label);
+    await refresh(out);
+  } finally {
+    busy = false;
+  }
 }
 
 document.querySelectorAll(".row[data-mode]").forEach(row => {

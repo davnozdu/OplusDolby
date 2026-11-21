@@ -154,6 +154,9 @@ eq_push() {
     # everywhere else, and without that flag the bands are accepted and then ignored.
     audiox profile 0 >/dev/null 2>&1
     audiox eq on >/dev/null 2>&1
+    audiox on >/dev/null 2>&1
+    state_set mode eq
+    state_set audio on
     state_set profile 0
     state_set eq on
     audiox eqset "$idx" "$@" >/dev/null && echo "eq applied at volIdx $idx: $(eq_load)"
